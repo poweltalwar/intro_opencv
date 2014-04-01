@@ -17,13 +17,26 @@ void transform()
 	int col = im1.cols;
 	int row = im1.rows;
 
+	//separate the planes of image
 	Mat planes[3],dst[3] ;
 	split(im1 ,planes);
 
-	float theta = 0;
-	float data[] = {.04,.8121,0,-0.5,.522,0};
+	//set the angle
+	float theta = CV_PI/6;
+
+	//affine transformation matrix
+	float data[] = {.4,.1,0,.1,-.1,0};
 	Mat matrix = Mat(2,3,CV_32F,data).clone();
 
+	//translation and scaling
+	float data1[] = {2*1,0,100,0,2*1,100};
+	Mat trans = Mat(2,3,CV_32F, data1).clone() ;
+
+	//rotation by affine transformation
+	float data2[] = {.4*cos(theta),.5*sin(theta),0,.3*(-sin(theta)),.2*cos(theta),1};
+	Mat rot = Mat(2,3,CV_32F, data2).clone() ;
+
+	//advanced rotation, around any point
 	Mat rotate = getRotationMatrix2D( Point(col/2,row/2), theta, 0 );
 
 	for(int i=0; i<channels; i++)
