@@ -27,6 +27,20 @@ void getNearestCluster(Mat points, Mat centers, Mat& index)
 }
 
 
+
+void getNearesrNeighbours(Mat points, Mat data, Mat index, Mat idx, Mat& neighbourIndex , Mat& distances)
+{
+	int clusterId ;
+	Mat mask, temp;
+
+	for(int i = 0; i < points.rows; i++)
+	{
+		clusterId = index.at<float>(i,0);
+		compare(index, clusterId, mask, CMP_EQ);
+
+	}
+}
+
 void kNN(Mat points, int K)
 {
 	int length = points.rows, cols = points.cols, numClusters = 10, maxIter = 2 ;
@@ -40,5 +54,8 @@ void kNN(Mat points, int K)
 
 	Mat index = Mat::ones(length, 1, CV_32F);
 	getNearestCluster(centers, points, index);
+
+	Mat distances = Mat::ones(length, K, CV_32F);
+	Mat neighbourIndex = Mat::ones(length, K, CV_32F);
 
 }

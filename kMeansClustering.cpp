@@ -8,7 +8,7 @@ using namespace std;
 using namespace cv;
 
 
-Mat getInitCenters( int K, int length, int cols )
+Mat getInitCenters(int K, int length, int cols)
 {
 	RNG random(0xFFFFFFFF);
 	Mat centers(K, cols, CV_32F);
@@ -27,7 +27,7 @@ Mat getInitCenters( int K, int length, int cols )
 }
 
 
-Mat getDistance( Mat points, Mat center )
+Mat getDistance(Mat points, Mat center)
 {
 	Mat dist, temp(points.rows, points.cols, CV_32F);
 	int cols = points.cols;
@@ -45,7 +45,7 @@ Mat getDistance( Mat points, Mat center )
 }
 
 
-Mat getIdx( Mat dists )
+Mat getIdx(Mat dists)
 {
 	Mat idx = Mat::ones(dists.rows,1,CV_32F);
 
@@ -62,7 +62,7 @@ Mat getIdx( Mat dists )
 }
 
 
-void adjustClusters( Mat& centers, Mat points, Mat idx, int K )
+void adjustClusters(Mat& centers, Mat points, Mat idx, int K)
 {
 	int cols = centers.cols, numEl;
 
@@ -98,7 +98,7 @@ void compress(Mat points, Mat idx, Mat centers)
 }
 
 
-void Clustering( Mat points, int K, int iterMax, Mat& centers, Mat& distFinal, Mat& idx )
+Mat Clustering(Mat points, int K, int iterMax, Mat& centers, Mat& distFinal, Mat& idx)
 {
 	int length = points.rows, cols = points.cols;
 
@@ -108,6 +108,7 @@ void Clustering( Mat points, int K, int iterMax, Mat& centers, Mat& distFinal, M
 	//Mat distFinal;
 
 	centers = getInitCenters(K, length, cols);
+	//getInitCenters(centers, K, length, cols);
 
 	for(int iter = 0; iter < iterMax; iter++)
 	{
@@ -122,7 +123,9 @@ void Clustering( Mat points, int K, int iterMax, Mat& centers, Mat& distFinal, M
 	}
 
 	reduce(dists, distFinal, 1, CV_REDUCE_MIN);dists.release();
-	//compress(points, idx, centers);
+	compress(points, idx, centers);
+
+	return points;
 
 }
 
