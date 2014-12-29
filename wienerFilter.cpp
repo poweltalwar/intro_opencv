@@ -122,12 +122,16 @@ void correlation(char *path)
 
 	image.convertTo(image, CV_32F);
 	image /= 255;
+	Mat original = image.clone();
 
-	Mat noise(image.rows, image.cols, CV_32F);
-	randu(noise, double(-1), double(1));
-	noise *= .25 ;
+	//Mat noise(image.rows, image.cols, CV_32F);
+	//randn(noise, 0, .1);
 
-	//add(image,  noise, image);
+	Mat meanNoise, meanImage, std_dev, std;
+	//meanStdDev(noise, meanNoise, std_dev);
+	meanStdDev(image, meanImage, std);
+	subtract(image, meanImage, image);
+	meanStdDev(image, meanImage, std);std_dev = std / 2 ;
 
 	Mat imageF = filter(image), noiseF = filter(noise);
 	Mat corrImage, corrNoise, temp1, temp2, temp3;
@@ -135,15 +139,16 @@ void correlation(char *path)
 	multiply(imageF, imageF, corrImage);
 	multiply(noiseF, noiseF, corrNoise);
 
-	add(corrImage, corrNoise, temp1);
+	add(corrImage, std_dev * std_dev * image.rows * image.cols, temp1);
 	divide(corrImage, temp1, temp2);
 	multiply(temp2, imageF, temp2);
 
-	//(imageF, temp3);
 	dft(temp2,  temp3, DFT_INVERSE|DFT_REAL_OUTPUT);
 	normalize( temp3,  temp3, 0, 1, CV_MINMAX);
 
+	cout << std / std_dev << endl;
 	namedWindow("filter",0);imshow("filter",temp3 );
-	namedWindow("original",0);imshow("original",image );
+	//namedWindow("noise",0);imshow("noise",noise );
+	namedWindow("original",0);imshow("original",original );
 	waitKey(0);
 }

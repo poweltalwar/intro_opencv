@@ -7,7 +7,7 @@
 using namespace std;
 using namespace cv ;
 
-void convolution()
+void conv()
 {
 
 	char* path = "/home/powel/codes/powel2/src1/dp1.png" ;
