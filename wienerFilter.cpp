@@ -36,13 +36,16 @@ void fftShift(Mat magImage, Mat& shiftImage)
 	q1.copyTo(tmp);                    // swap quadrant (Top-Right with Bottom-Left)
 	q2.copyTo(q1);
 	tmp.copyTo(q2);
-
-
 }
 
 
-Mat findDFT(Mat padded, Mat& magImage, Mat& phaseImage, int doLog)
+Mat findDFT(Mat image, Mat& magImage, Mat& phaseImage, int padding=0, int doLog=1)
 {
+	Mat padded = image.clone();
+
+	if (padding)
+		padImage(image, padded);
+
 	Mat planes[] = {Mat_<float>(padded), Mat::zeros(padded.size(), CV_32F)};
 	Mat dftImage;
 
@@ -62,93 +65,104 @@ Mat findDFT(Mat padded, Mat& magImage, Mat& phaseImage, int doLog)
 	// crop the spectrum, if it has an odd number of rows or columns
 	magImage = magImage(Rect(0, 0, magImage.cols & -2, magImage.rows & -2));
 	normalize(magImage, magImage, 0, 1, CV_MINMAX);
+	fftShift(magImage, magImage);
 
 	phase(planes[0], planes[1], phaseImage);
 	phaseImage *= 180 / CV_PI ;
 	phaseImage.convertTo(phaseImage, CV_8U);
 
 	return dftImage;
-
-
 }
 
 
-Mat filter(Mat image)
+
+void Conv2ByFFT(const Mat& f,const Mat& g,Mat& result)
 {
-	/*Mat image = imread(path, 0);
-	//Mat image = getGaussianKernel(57, .0001, CV_64F);
+result.create(abs(f.rows-g.rows)+1,abs(f.cols-g.cols)+1,f.type());
 
-	//double der_x[] = {-3, 0, 3, -10, 0, 10, -3, 0, 3} ;
-	//Mat image = Mat(3, 3, CV_32F, der_x).clone();
+//pad the images and get optimal FFT size
+Size dftSize;
+dftSize.width = getOptimalDFTSize(f.cols + g.cols - 1);
+dftSize.height = getOptimalDFTSize(f.rows + g.cols - 1);
 
-	if ( image.data == NULL)
-		cout << "invalid image";
+Mat tmpF(dftSize,f.type(),Scalar::all(0));
+Mat tmpG(dftSize,g.type(),Scalar::all(0));
 
-	image.convertTo(image, CV_32F);
-*/
+Mat roiF(tmpF, Rect(0,0,f.cols,f.rows));
+f.copyTo(roiF);
+Mat roiG(tmpG, Rect(0,0,g.cols,g.rows));
+g.copyTo(roiG);
 
-	Mat padded = image.clone();
-	padImage(image, padded);
+//perform Fourier Transform
+dft(tmpF,tmpF,0,f.rows);
+dft(tmpG,tmpG,0,g.rows);
 
-	Mat magImage, phaseImage, dftImage;
-	dftImage = findDFT(padded, magImage, phaseImage, 0);
+//perform per-element multiplication of two Fourier spectrums
+mulSpectrums(tmpF,tmpG,tmpF,0);
 
-	return dftImage;
-/*
-	Mat shiftImage = magImage.clone();
-	fftShift(magImage, shiftImage);
-*/
-	//cout << magImage.rows << "\t" << magImage.cols << endl ;
+//perform inverse Fourier Transform
+dft(tmpF,tmpF,DFT_INVERSE+DFT_SCALE,result.rows);
 
-
-	//namedWindow("dft",0);imshow("dft", shiftImage);
-	//waitKey(0);
-
-
-
-
+tmpF(Rect(0,0,result.cols,result.rows)).copyTo(result);
 }
 
 
-void correlation(char *path)
+
+void wiener(char *path, double SNR=5)
 {
 	Mat image = imread(path, 0);
 
 	if (image.data == NULL)
 	{
-		cout << " invalid image";
+		cout << "invalid image";
 		return ;
 	}
 
 	image.convertTo(image, CV_32F);
 	image /= 255;
+
 	Mat original = image.clone();
+	Mat noise(image.rows, image.cols, CV_32F);
+	Mat tempMean, meanImage, stdNoise, stdImage;
 
-	//Mat noise(image.rows, image.cols, CV_32F);
-	//randn(noise, 0, .1);
+	meanStdDev(image, meanImage, stdImage);
+	randn(noise, 0, .05);
+	add(image, noise, image);
 
-	Mat meanNoise, meanImage, std_dev, std;
-	//meanStdDev(noise, meanNoise, std_dev);
-	meanStdDev(image, meanImage, std);
 	subtract(image, meanImage, image);
-	meanStdDev(image, meanImage, std);std_dev = std / 2 ;
+	meanStdDev(image, tempMean, stdImage);
+	stdNoise = (stdImage  / sqrt(SNR)) ;
+	image += meanImage;
 
-	Mat imageF = filter(image), noiseF = filter(noise);
-	Mat corrImage, corrNoise, temp1, temp2, temp3;
+	Mat magImage, phaseImage, imageF;
+	imageF = findDFT(image, magImage, phaseImage);
+
+	Mat corrImage, temp1, temp2, temp3, filter;
+	Mat noiseP = stdNoise * stdNoise * image.rows * image.cols;
 
 	multiply(imageF, imageF, corrImage);
-	multiply(noiseF, noiseF, corrNoise);
-
-	add(corrImage, std_dev * std_dev * image.rows * image.cols, temp1);
+	add(corrImage, noiseP, temp1);
 	divide(corrImage, temp1, temp2);
 	multiply(temp2, imageF, temp2);
 
-	dft(temp2,  temp3, DFT_INVERSE|DFT_REAL_OUTPUT);
-	normalize( temp3,  temp3, 0, 1, CV_MINMAX);
+	//Mat kernel = Mat::ones( image.rows, image.cols, CV_32F )/ (float)(image.rows*image.cols);
+	Mat kernel = getGaussianKernel(11,2,CV_32F);
 
-	cout << std / std_dev << endl;
-	namedWindow("filter",0);imshow("filter",temp3 );
-	//namedWindow("noise",0);imshow("noise",noise );
-	namedWindow("original",0);imshow("original",original );
+	Mat magKernel, phaseKernel;
+	Mat kernelF, temp21;// = findDFT(kernel, magKernel, phaseKernel);
+	//mulSpectrums(temp2, kernelF, temp2, 0);
+	//Conv2ByFFT(temp2,kernel,temp2);
+	//cout << kernelF.rows << "\t" << kernelF.cols << endl ;
+
+
+
+	dft(temp2, temp3, DFT_INVERSE|DFT_REAL_OUTPUT);
+	normalize(temp3,  filter, 0, 1, CV_MINMAX);
+
+	cout << filter.rows << "\t" << filter.cols << endl << image.rows << "\t" << image.cols << endl ;
+
+	namedWindow("filter", 0);imshow("filter", filter);
+	namedWindow("noise", 0);imshow("noise", image);
+	namedWindow("original", 0);imshow("original", original);
 	waitKey(0);
 }
